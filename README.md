@@ -2,7 +2,9 @@
 
 **ReaperianiBass** is a stereo/mono harmonic bass enhancer by **Reaperiani**. It uses a low-frequency split, nonlinear harmonic generation, spectral shaping, and a separate original-bass switch to create a stronger perception of low notes on small speakers.
 
-The DSP is an original implementation based on the psychoacoustic missing-fundamental principle described in the project research notes. It is not a reverse-engineered or bit-compatible copy of any commercial product.
+## Relationship to Waves RBass
+
+ReaperianiBass is an independent project **freely inspired by the general operation and bass-enhancement concept of Waves Renaissance Bass (RBass)**. We have not had access to, and have not used, the original source code. The DSP is independently written from general psychoacoustic principles and the user-provided research notes. A few REAPER tone tests compared broad output levels/spectrum against the installed plugin; they were not used to reconstruct its proprietary algorithm. The GUI, artwork, presets, and Reaperiani branding are original; no Waves logos or product assets are included. ReaperianiBass is not affiliated with, sponsored by, or endorsed by Waves.
 
 ## Formats and platforms
 
