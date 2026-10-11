@@ -1,0 +1,11 @@
+/build/
+/dist/
+/cmake-build-*/
+__pycache__/
+/.vs/
+/.idea/
+*.user
+*.suo
+*.VC.db
+*.VC.VC.opendb
+.DS_Store
