@@ -1,6 +1,7 @@
 #include "BassEnhancerDSP.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 namespace reaperiani
@@ -94,6 +95,17 @@ void BassEnhancerDSP::reset()
         state.envelope = 0.0f;
     }
     smoothedOutputGain = 1.0f;
+    originalBassMeterDb.store(-60.0f);
+    harmonicsMeterDb.store(-60.0f);
+    outputLeftMeterDb.store(-60.0f);
+    outputRightMeterDb.store(-60.0f);
+    outputClipping.store(false);
+}
+
+MeterReadings BassEnhancerDSP::getMeterReadings() const noexcept
+{
+    return {originalBassMeterDb.load(), harmonicsMeterDb.load(),
+            outputLeftMeterDb.load(), outputRightMeterDb.load(), outputClipping.load()};
 }
 
 void BassEnhancerDSP::processBlock(float* const* channels,
@@ -134,6 +146,9 @@ void BassEnhancerDSP::processBlock(float* const* channels,
     const auto drive = 1.5f + amount * 5.5f;
     const auto normalizer = std::max(0.001f, std::tanh(drive));
     const auto linearSlope = drive / normalizer;
+    double bassEnergy = 0.0;
+    double harmonicEnergy = 0.0;
+    std::array<float, 2> outputPeaks{0.0f, 0.0f};
 
     for (int sample = 0; sample < sampleCount; ++sample)
     {
@@ -146,6 +161,7 @@ void BassEnhancerDSP::processBlock(float* const* channels,
             const auto low = state.bassLowPass.process(input);
             const auto high = state.bassHighPass2.process(state.bassHighPass.process(input));
             const auto shaperInput = state.cleanHighPass.process(low);
+            bassEnergy += static_cast<double>(low) * low;
 
             const auto detector = std::abs(shaperInput);
             const auto detectorCoefficient = detector > state.envelope ? envelopeAttack : envelopeRelease;
@@ -171,8 +187,13 @@ void BassEnhancerDSP::processBlock(float* const* channels,
 
             const auto harmonics = state.harmonicHighPass.process(
                 state.harmonicLowPass.process(shaped * amount * dynamicGain * 1.35f));
+            harmonicEnergy += static_cast<double>(harmonics) * harmonics;
             const auto original = rawParameters.originalBass ? input : high;
-            channels[channel][sample] = (original + harmonics) * smoothedOutputGain;
+            const auto output = (original + harmonics) * smoothedOutputGain;
+            channels[channel][sample] = output;
+            if (channel < static_cast<int>(outputPeaks.size()))
+                outputPeaks[static_cast<std::size_t>(channel)] =
+                    std::max(outputPeaks[static_cast<std::size_t>(channel)], std::abs(output));
         }
     }
 
@@ -181,5 +202,28 @@ void BassEnhancerDSP::processBlock(float* const* channels,
         if (channels[channel] != nullptr)
             for (int sample = 0; sample < sampleCount; ++sample)
                 channels[channel][sample] *= smoothedOutputGain;
+
+    const auto sampleTotal = static_cast<double>(activeChannels) * sampleCount;
+    const auto rmsDb = [sampleTotal](double energy)
+    {
+        const auto rmsValue = std::sqrt(energy / sampleTotal);
+        return static_cast<float>(std::clamp(20.0 * std::log10(std::max(rmsValue, 1.0e-6)), -60.0, 6.0));
+    };
+    const auto peakDb = [](float peak)
+    {
+        return std::clamp(20.0f * std::log10(std::max(peak, 1.0e-6f)), -60.0f, 6.0f);
+    };
+    const auto smooth = [](std::atomic<float>& meter, float nextValue)
+    {
+        const auto previous = meter.load();
+        const auto coefficient = nextValue > previous ? 0.72f : 0.16f;
+        meter.store(previous + (nextValue - previous) * coefficient);
+    };
+
+    smooth(originalBassMeterDb, rmsDb(bassEnergy));
+    smooth(harmonicsMeterDb, rmsDb(harmonicEnergy));
+    smooth(outputLeftMeterDb, peakDb(outputPeaks[0]));
+    smooth(outputRightMeterDb, peakDb(activeChannels > 1 ? outputPeaks[1] : outputPeaks[0]));
+    outputClipping.store(outputPeaks[0] >= 0.999f || outputPeaks[1] >= 0.999f);
 }
 } // namespace reaperiani

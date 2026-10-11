@@ -60,6 +60,12 @@ int main()
     require(rms(left) < dryRms * 3.0f, "harmonic output stays bounded");
     require(left == right, "stereo channels remain matched for a centered tone");
 
+    const auto meters = processor.getMeterReadings();
+    require(meters.originalBassDb > -60.0f, "original-bass meter responds to audio");
+    require(meters.harmonicsDb > -60.0f, "harmonics meter responds to generated signal");
+    require(meters.outputLeftDb > -60.0f && meters.outputRightDb > -60.0f,
+            "stereo output meters respond to audio");
+
     for (const auto sample : left)
         require(std::isfinite(sample), "output contains no NaN or infinity");
 

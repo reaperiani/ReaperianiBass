@@ -1,9 +1,19 @@
 #pragma once
 
+#include <atomic>
 #include <vector>
 
 namespace reaperiani
 {
+struct MeterReadings
+{
+    float originalBassDb = -60.0f;
+    float harmonicsDb = -60.0f;
+    float outputLeftDb = -60.0f;
+    float outputRightDb = -60.0f;
+    bool clipping = false;
+};
+
 struct BassEnhancerParameters
 {
     float bassFrequencyHz = 90.0f;
@@ -25,6 +35,7 @@ public:
                       int channelCount,
                       int sampleCount,
                       const BassEnhancerParameters& parameters);
+    MeterReadings getMeterReadings() const noexcept;
 
 private:
     struct Biquad
@@ -61,5 +72,10 @@ private:
     float envelopeAttack = 0.01f;
     float envelopeRelease = 0.001f;
     std::vector<ChannelState> channelStates;
+    std::atomic<float> originalBassMeterDb{-60.0f};
+    std::atomic<float> harmonicsMeterDb{-60.0f};
+    std::atomic<float> outputLeftMeterDb{-60.0f};
+    std::atomic<float> outputRightMeterDb{-60.0f};
+    std::atomic<bool> outputClipping{false};
 };
 } // namespace reaperiani

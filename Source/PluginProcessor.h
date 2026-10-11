@@ -35,6 +35,7 @@ public:
 
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     juce::AudioProcessorValueTreeState parameters;
+    reaperiani::MeterReadings getMeterReadings() const noexcept { return dsp.getMeterReadings(); }
 
 private:
     reaperiani::BassEnhancerDSP dsp;

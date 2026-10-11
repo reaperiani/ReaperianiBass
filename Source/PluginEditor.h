@@ -4,7 +4,8 @@
 
 #include <array>
 
-class ReaperianiBassAudioProcessorEditor final : public juce::AudioProcessorEditor
+class ReaperianiBassAudioProcessorEditor final : public juce::AudioProcessorEditor,
+                                                  private juce::Timer
 {
 public:
     explicit ReaperianiBassAudioProcessorEditor(ReaperianiBassAudioProcessor&);
@@ -14,21 +15,34 @@ public:
     void resized() override;
 
 private:
-    class RetroLookAndFeel final : public juce::LookAndFeel_V4
+    class VintageLookAndFeel final : public juce::LookAndFeel_V4
     {
     public:
-        void drawRotarySlider(juce::Graphics&, int x, int y, int width, int height,
-                              float sliderPos, float rotaryStartAngle, float rotaryEndAngle,
-                              juce::Slider&) override;
+        void drawLinearSlider(juce::Graphics&, int x, int y, int width, int height,
+                              float sliderPos, float minSliderPos, float maxSliderPos,
+                              juce::Slider::SliderStyle, juce::Slider&) override;
     };
 
+    enum class MeterKind
+    {
+        originalBass,
+        harmonics,
+        output
+    };
+
+    void timerCallback() override;
+    void drawMeter(juce::Graphics&, juce::Rectangle<int>, float levelDb,
+                   MeterKind, bool showScale);
+    void applyPreset(int presetId);
+
     ReaperianiBassAudioProcessor& processor;
-    RetroLookAndFeel retroLookAndFeel;
-    std::array<juce::Slider, 7> knobs;
-    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 7> knobAttachments;
+    VintageLookAndFeel vintageLookAndFeel;
+    std::array<juce::Slider, 7> sliders;
+    std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 7> sliderAttachments;
+    juce::ComboBox presetSelector;
     juce::ToggleButton originalBassButton{"ORIGINAL BASS"};
     std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> originalBassAttachment;
-    juce::TextButton licenseButton{"AGPL-3.0"};
+    juce::TextButton aboutButton{"?"};
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ReaperianiBassAudioProcessorEditor)
 };

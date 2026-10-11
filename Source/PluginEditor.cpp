@@ -1,111 +1,133 @@
 #include "PluginEditor.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace
 {
-const juce::Colour background{0xff211719};
-const juce::Colour panel{0xff26282a};
-const juce::Colour inset{0xff17191b};
-const juce::Colour brass{0xffc9a86b};
-const juce::Colour brassLight{0xffead7ac};
-const juce::Colour wine{0xff55252b};
-const juce::Colour ink{0xffeee4d2};
+const juce::Colour nearBlack{0xff080d12};
+const juce::Colour navy{0xff001426};
+const juce::Colour bluePanel{0xff00243a};
+const juce::Colour silver{0xff85898a};
+const juce::Colour silverLight{0xffd0d0cb};
+const juce::Colour silverDark{0xff292d30};
+const juce::Colour labelColour{0xffd0d0d0};
+const juce::Colour blueLed{0xff006bff};
+const juce::Colour harmonicAmber{0xffffb000};
+const juce::Colour peakRed{0xff840e00};
 
 constexpr std::array<const char*, 7> parameterIds{
     "bassFrequency", "harmonicAmount", "character", "harmonicDecay", "dynamics", "clean", "outputGain"};
-constexpr std::array<const char*, 7> parameterNames{
-    "BASS FREQUENCY", "HARMONICS", "ODD / EVEN", "HARMONIC DECAY", "DYNAMICS", "CLEAN", "OUTPUT"};
 constexpr std::array<double, 7> parameterDefaults{90.0, 25.0, 35.0, 55.0, 25.0, 0.0, 0.0};
+
+juce::String oneDecimal(float value)
+{
+    return juce::String(value, 1);
+}
 } // namespace
 
-void ReaperianiBassAudioProcessorEditor::RetroLookAndFeel::drawRotarySlider(
+void ReaperianiBassAudioProcessorEditor::VintageLookAndFeel::drawLinearSlider(
     juce::Graphics& graphics, int x, int y, int width, int height, float sliderPos,
-    float rotaryStartAngle, float rotaryEndAngle, juce::Slider& slider)
+    float minSliderPos, float maxSliderPos, juce::Slider::SliderStyle style,
+    juce::Slider& slider)
 {
-    juce::ignoreUnused(slider);
+    juce::ignoreUnused(minSliderPos, maxSliderPos);
+    const auto vertical = style == juce::Slider::LinearVertical;
     const auto bounds = juce::Rectangle<float>(static_cast<float>(x), static_cast<float>(y),
                                                static_cast<float>(width), static_cast<float>(height));
-    const auto diameter = juce::jmin(bounds.getWidth(), bounds.getHeight()) - 10.0f;
-    const auto radius = diameter * 0.5f;
-    const auto centre = bounds.getCentre();
-    const auto angle = rotaryStartAngle + sliderPos * (rotaryEndAngle - rotaryStartAngle);
 
-    graphics.setColour(inset);
-    graphics.fillEllipse(centre.x - radius - 2.0f, centre.y - radius - 2.0f,
-                         diameter + 4.0f, diameter + 4.0f);
-
-    juce::ColourGradient knobGradient(juce::Colour{0xff68615a}, centre.x, centre.y - radius,
-                                      juce::Colour{0xff27282a}, centre.x, centre.y + radius, false);
-    knobGradient.addColour(0.46, juce::Colour{0xff44413d});
-    graphics.setGradientFill(knobGradient);
-    graphics.fillEllipse(centre.x - radius, centre.y - radius, diameter, diameter);
-    graphics.setColour(brass.withAlpha(0.9f));
-    graphics.drawEllipse(centre.x - radius, centre.y - radius, diameter, diameter, 1.2f);
-
-    const auto tickRadius = radius + 5.0f;
-    constexpr int ticks = 25;
-    for (int tick = 0; tick < ticks; ++tick)
+    graphics.setColour(nearBlack);
+    if (vertical)
     {
-        const auto proportion = static_cast<float>(tick) / static_cast<float>(ticks - 1);
-        const auto tickAngle = rotaryStartAngle + proportion * (rotaryEndAngle - rotaryStartAngle);
-        const auto inner = radius + (tick % 4 == 0 ? 3.0f : 5.0f);
-        const auto outer = tickRadius + (tick % 4 == 0 ? 1.0f : -1.0f);
-        juce::Line<float> line(centre.x + inner * std::cos(tickAngle), centre.y + inner * std::sin(tickAngle),
-                               centre.x + outer * std::cos(tickAngle), centre.y + outer * std::sin(tickAngle));
-        graphics.setColour(tick % 4 == 0 ? brassLight : brass.withAlpha(0.65f));
-        graphics.drawLine(line, tick % 4 == 0 ? 1.6f : 1.0f);
+        const auto centreX = bounds.getCentreX();
+        const auto rail = juce::Rectangle<float>(centreX - 3.0f, bounds.getY() + 5.0f,
+                                                  6.0f, bounds.getHeight() - 10.0f);
+        graphics.fillRect(rail);
+        graphics.setColour(silver.withAlpha(0.65f));
+        graphics.drawLine(centreX - 1.0f, rail.getY() + 2.0f, centreX - 1.0f,
+                          rail.getBottom() - 2.0f, 1.0f);
+
+        auto thumb = juce::Rectangle<float>(bounds.getX() + 2.0f, sliderPos - 10.0f,
+                                             bounds.getWidth() - 4.0f, 20.0f);
+        juce::ColourGradient thumbGradient(juce::Colour{0xff62686b}, thumb.getX(), thumb.getY(),
+                                           juce::Colour{0xff24282b}, thumb.getX(), thumb.getBottom(), false);
+        graphics.setGradientFill(thumbGradient);
+        graphics.fillRect(thumb);
+        graphics.setColour(silverLight);
+        graphics.drawLine(thumb.getX(), thumb.getY(), thumb.getRight(), thumb.getY(), 1.0f);
+        graphics.setColour(nearBlack);
+        graphics.drawLine(thumb.getX(), thumb.getBottom(), thumb.getRight(), thumb.getBottom(), 1.0f);
+        graphics.setColour(labelColour);
+        graphics.setFont(juce::Font(juce::FontOptions(9.0f, juce::Font::bold)));
+        graphics.drawFittedText(slider.getTextFromValue(slider.getValue()), thumb.toNearestInt(),
+                                juce::Justification::centred, 1);
+        return;
     }
 
-    juce::Path arc;
-    arc.addCentredArc(centre.x, centre.y, radius + 1.0f, radius + 1.0f, 0.0f,
-                      rotaryStartAngle, angle, true);
-    graphics.setColour(brass);
-    graphics.strokePath(arc, juce::PathStrokeType(2.5f, juce::PathStrokeType::curved,
-                                                  juce::PathStrokeType::rounded));
+    const auto centreY = bounds.getCentreY();
+    auto rail = juce::Rectangle<float>(bounds.getX() + 3.0f, centreY - 2.0f,
+                                       bounds.getWidth() - 6.0f, 4.0f);
+    graphics.fillRect(rail);
+    const auto filledWidth = juce::jlimit(0.0f, rail.getWidth(), sliderPos - rail.getX());
+    graphics.setColour(blueLed.withAlpha(0.76f));
+    graphics.fillRect(rail.withWidth(filledWidth));
+    graphics.setColour(silver.withAlpha(0.75f));
+    graphics.drawLine(rail.getX(), centreY - 3.0f, rail.getRight(), centreY - 3.0f, 1.0f);
 
-    juce::Path pointer;
-    pointer.addRoundedRectangle(-1.8f, -radius + 10.0f, 3.6f, radius * 0.49f, 1.8f);
-    graphics.setColour(brassLight);
-    graphics.fillPath(pointer, juce::AffineTransform::rotation(angle).translated(centre.x, centre.y));
-    graphics.setColour(juce::Colour{0xff151618});
-    graphics.fillEllipse(centre.x - 3.0f, centre.y - 3.0f, 6.0f, 6.0f);
+    auto thumb = juce::Rectangle<float>(sliderPos - 4.0f, centreY - 8.0f, 8.0f, 16.0f);
+    graphics.setColour(silverLight);
+    graphics.fillRect(thumb);
+    graphics.setColour(nearBlack);
+    graphics.drawRect(thumb, 1.0f);
 }
 
 ReaperianiBassAudioProcessorEditor::ReaperianiBassAudioProcessorEditor(
     ReaperianiBassAudioProcessor& audioProcessor)
     : AudioProcessorEditor(&audioProcessor), processor(audioProcessor)
 {
-    setLookAndFeel(&retroLookAndFeel);
-    setSize(920, 570);
+    setLookAndFeel(&vintageLookAndFeel);
+    setSize(720, 520);
     setResizable(false, false);
 
-    for (std::size_t index = 0; index < knobs.size(); ++index)
+    for (std::size_t index = 0; index < sliders.size(); ++index)
     {
-        auto& knob = knobs[index];
-        knob.setSliderStyle(juce::Slider::RotaryHorizontalVerticalDrag);
-        knob.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
-        knob.setRotaryParameters(juce::MathConstants<float>::pi * 1.22f,
-                                 juce::MathConstants<float>::pi * 2.78f, true);
-        knob.setDoubleClickReturnValue(true, parameterDefaults[index]);
-        knob.setTextValueSuffix(index == 0 ? " Hz" : (index == 6 ? " dB" : "%"));
-        knob.setNumDecimalPlacesToDisplay(index == 0 ? 0 : 1);
-        knob.setLookAndFeel(&retroLookAndFeel);
-        addAndMakeVisible(knob);
-        knobAttachments[index] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
-            processor.parameters, parameterIds[index], knob);
+        auto& slider = sliders[index];
+        slider.setSliderStyle(index == 1 || index == 6
+                                  ? juce::Slider::LinearVertical
+                                  : juce::Slider::LinearHorizontal);
+        slider.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+        slider.setLookAndFeel(&vintageLookAndFeel);
+        slider.setMouseDragSensitivity(150);
+        slider.setDoubleClickReturnValue(true, parameterDefaults[index]);
+        slider.setNumDecimalPlacesToDisplay(index == 0 || index == 6 ? 1 : 0);
+        slider.setTextValueSuffix(index == 0 ? " Hz" : (index == 6 ? " dB" : "%"));
+        addAndMakeVisible(slider);
+        sliderAttachments[index] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment>(
+            processor.parameters, parameterIds[index], slider);
     }
 
+    presetSelector.addItem("A: SUB FOUNDATION", 1);
+    presetSelector.addItem("A: TIGHT & DEEP", 2);
+    presetSelector.addItem("A: SMALL SPEAKERS", 3);
+    presetSelector.addItem("A: CLEAN BODY", 4);
+    presetSelector.setSelectedId(1, juce::dontSendNotification);
+    presetSelector.setColour(juce::ComboBox::backgroundColourId, navy);
+    presetSelector.setColour(juce::ComboBox::textColourId, labelColour);
+    presetSelector.setColour(juce::ComboBox::outlineColourId, silverDark);
+    presetSelector.setColour(juce::ComboBox::arrowColourId, silverLight);
+    presetSelector.onChange = [this] { applyPreset(presetSelector.getSelectedId()); };
+    addAndMakeVisible(presetSelector);
+
     originalBassButton.setClickingTogglesState(true);
-    originalBassButton.setColour(juce::ToggleButton::textColourId, ink);
-    originalBassButton.setColour(juce::ToggleButton::tickColourId, brassLight);
+    originalBassButton.setColour(juce::ToggleButton::textColourId, labelColour);
+    originalBassButton.setColour(juce::ToggleButton::tickColourId, blueLed);
     addAndMakeVisible(originalBassButton);
     originalBassAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment>(
         processor.parameters, "originalBass", originalBassButton);
 
-    licenseButton.setColour(juce::TextButton::buttonColourId, wine);
-    licenseButton.setColour(juce::TextButton::textColourOffId, brassLight);
-    licenseButton.onClick = []
+    aboutButton.setColour(juce::TextButton::buttonColourId, silverDark);
+    aboutButton.setColour(juce::TextButton::textColourOffId, labelColour);
+    aboutButton.onClick = []
     {
         juce::AlertWindow::showMessageBoxAsync(
             juce::MessageBoxIconType::InfoIcon,
@@ -117,101 +139,324 @@ ReaperianiBassAudioProcessorEditor::ReaperianiBassAudioProcessorEditor(
             "and at https://www.gnu.org/licenses/agpl-3.0.html.",
             "Close");
     };
-    addAndMakeVisible(licenseButton);
+    addAndMakeVisible(aboutButton);
+    startTimerHz(30);
 }
 
 ReaperianiBassAudioProcessorEditor::~ReaperianiBassAudioProcessorEditor()
 {
+    stopTimer();
     setLookAndFeel(nullptr);
-    for (auto& knob : knobs)
-        knob.setLookAndFeel(nullptr);
+    for (auto& slider : sliders)
+        slider.setLookAndFeel(nullptr);
+}
+
+void ReaperianiBassAudioProcessorEditor::timerCallback()
+{
+    repaint();
+}
+
+void ReaperianiBassAudioProcessorEditor::applyPreset(int presetId)
+{
+    struct Preset
+    {
+        float frequency;
+        float amount;
+        float character;
+        float decay;
+        float dynamics;
+        float clean;
+        bool originalBass;
+        float output;
+    };
+
+    static constexpr std::array<Preset, 4> presets{{
+        {90.0f, 25.0f, 35.0f, 55.0f, 25.0f, 0.0f, true, 0.0f},
+        {70.0f, 20.0f, 20.0f, 35.0f, 42.0f, 15.0f, true, 0.0f},
+        {82.0f, 42.0f, 65.0f, 72.0f, 28.0f, 0.0f, false, -1.5f},
+        {105.0f, 18.0f, 28.0f, 62.0f, 60.0f, 32.0f, true, 0.0f}
+    }};
+
+    const auto index = juce::jlimit(0, static_cast<int>(presets.size()) - 1, presetId - 1);
+    const auto& preset = presets[static_cast<std::size_t>(index)];
+    const auto setValue = [this](const char* id, float value)
+    {
+        if (auto* parameter = processor.parameters.getParameter(id))
+            parameter->setValueNotifyingHost(parameter->convertTo0to1(value));
+    };
+
+    setValue("bassFrequency", preset.frequency);
+    setValue("harmonicAmount", preset.amount);
+    setValue("character", preset.character);
+    setValue("harmonicDecay", preset.decay);
+    setValue("dynamics", preset.dynamics);
+    setValue("clean", preset.clean);
+    setValue("originalBass", preset.originalBass ? 1.0f : 0.0f);
+    setValue("outputGain", preset.output);
+}
+
+void ReaperianiBassAudioProcessorEditor::drawMeter(juce::Graphics& graphics,
+                                                   juce::Rectangle<int> bounds,
+                                                   float levelDb,
+                                                   MeterKind kind,
+                                                   bool showScale)
+{
+    auto frame = bounds.toFloat();
+    graphics.setColour(nearBlack);
+    graphics.fillRect(frame);
+    graphics.setColour(silver.withAlpha(0.75f));
+    graphics.drawLine(frame.getX(), frame.getY(), frame.getRight(), frame.getY(), 1.0f);
+    graphics.drawLine(frame.getX(), frame.getY(), frame.getX(), frame.getBottom(), 1.0f);
+    graphics.setColour(nearBlack);
+    graphics.drawLine(frame.getX(), frame.getBottom(), frame.getRight(), frame.getBottom(), 1.0f);
+    graphics.drawLine(frame.getRight(), frame.getY(), frame.getRight(), frame.getBottom(), 1.0f);
+
+    auto interior = frame.reduced(3.0f, 3.0f);
+    if (showScale)
+        interior.setX(interior.getX() + 16.0f);
+    graphics.setColour(juce::Colour{0xff000a13});
+    graphics.fillRect(interior);
+
+    constexpr int segmentCount = 24;
+    constexpr float gap = 1.25f;
+    const auto segmentHeight = (interior.getHeight() - gap * (segmentCount - 1)) / segmentCount;
+    const auto normalized = juce::jlimit(0.0f, 1.0f, (levelDb + 36.0f) / 36.0f);
+    const auto litSegments = static_cast<int>(std::round(normalized * segmentCount));
+
+    for (int segment = 0; segment < segmentCount; ++segment)
+    {
+        const auto y = interior.getBottom() - (segment + 1) * segmentHeight - segment * gap;
+        auto segmentBounds = juce::Rectangle<float>(interior.getX() + 1.0f, y,
+                                                     interior.getWidth() - 2.0f, segmentHeight);
+        const auto lit = segment < litSegments;
+        juce::Colour colour;
+        if (kind == MeterKind::originalBass)
+            colour = lit ? juce::Colour{segment % 3 == 0 ? 0xff2d6cff : 0xff0013a8}
+                         : juce::Colour{0xff00152d};
+        else if (segment >= 22)
+            colour = lit ? peakRed : juce::Colour{0xff270d0b};
+        else if (segment >= 15)
+            colour = lit ? juce::Colour{0xffffd43b} : juce::Colour{0xff3b2c08};
+        else
+            colour = lit ? (kind == MeterKind::output ? juce::Colour{0xffffe100} : harmonicAmber)
+                         : juce::Colour{0xff30200a};
+
+        graphics.setColour(colour);
+        graphics.fillRect(segmentBounds);
+        graphics.setColour(juce::Colours::white.withAlpha(lit ? 0.18f : 0.035f));
+        graphics.drawLine(segmentBounds.getX(), segmentBounds.getY(),
+                          segmentBounds.getRight(), segmentBounds.getY(), 0.5f);
+    }
+
+    if (showScale)
+    {
+        constexpr std::array<int, 5> marks{-3, -9, -15, -21, -27};
+        graphics.setFont(juce::Font(juce::FontOptions(8.0f)));
+        for (const auto mark : marks)
+        {
+            const auto y = interior.getY() + (static_cast<float>(-mark) / 36.0f) * interior.getHeight();
+            graphics.setColour(labelColour.withAlpha(0.78f));
+            graphics.drawText(juce::String(mark), bounds.getX() + 1,
+                              static_cast<int>(y) - 5, 14, 10, juce::Justification::centredRight);
+            graphics.setColour(labelColour.withAlpha(0.42f));
+            graphics.drawLine(interior.getX() - 1.0f, y, interior.getX() + 3.0f, y, 0.7f);
+        }
+    }
 }
 
 void ReaperianiBassAudioProcessorEditor::paint(juce::Graphics& graphics)
 {
-    graphics.fillAll(background);
+    graphics.fillAll(juce::Colour{0xff15191c});
 
-    auto outer = getLocalBounds().toFloat().reduced(12.0f);
-    graphics.setColour(brass.withAlpha(0.95f));
-    graphics.fillRoundedRectangle(outer, 12.0f);
+    auto chassis = getLocalBounds().toFloat().reduced(5.0f);
+    juce::ColourGradient metal(juce::Colour{0xffa7aaab}, chassis.getX(), chassis.getY(),
+                               juce::Colour{0xff383d40}, chassis.getX(), chassis.getBottom(), false);
+    metal.addColour(0.12, juce::Colour{0xff74797b});
+    metal.addColour(0.52, juce::Colour{0xff555a5c});
+    graphics.setGradientFill(metal);
+    graphics.fillRect(chassis);
+    graphics.setColour(nearBlack);
+    graphics.drawRect(chassis, 2.0f);
+    graphics.setColour(silverLight.withAlpha(0.72f));
+    graphics.drawLine(chassis.getX() + 3.0f, chassis.getY() + 3.0f,
+                      chassis.getRight() - 3.0f, chassis.getY() + 3.0f, 1.0f);
 
-    auto face = outer.reduced(5.0f);
-    graphics.setColour(panel);
-    graphics.fillRoundedRectangle(face, 9.0f);
-    graphics.setColour(brass.withAlpha(0.38f));
-    graphics.drawRoundedRectangle(face, 9.0f, 1.0f);
-
-    auto header = face.removeFromTop(80.0f).reduced(1.0f);
-    graphics.setColour(wine);
-    graphics.fillRoundedRectangle(header, 7.0f);
-    graphics.setColour(brass.withAlpha(0.8f));
-    graphics.drawLine(header.getX() + 18.0f, header.getBottom() - 1.0f,
-                      header.getRight() - 18.0f, header.getBottom() - 1.0f, 1.0f);
-
-    graphics.setColour(brassLight);
-    graphics.setFont(juce::Font(juce::FontOptions(19.0f, juce::Font::bold)));
-    graphics.drawText("REAPERIANI", 36, 31, 185, 27, juce::Justification::centredLeft);
-    graphics.setColour(ink);
-    graphics.setFont(juce::Font(juce::FontOptions(30.0f, juce::Font::bold)));
-    graphics.drawText("BASS", 218, 25, 130, 39, juce::Justification::centredLeft);
-    graphics.setColour(brassLight.withAlpha(0.86f));
-    graphics.setFont(juce::Font(juce::FontOptions(11.0f)));
-    graphics.drawText("HARMONIC BASS ENHANCER   •   BY REAPERIANI", 539, 37, 342, 25,
+    auto toolbar = juce::Rectangle<float>(13.0f, 12.0f, 694.0f, 21.0f);
+    graphics.setColour(juce::Colour{0xff111518});
+    graphics.fillRect(toolbar);
+    graphics.setColour(silver.withAlpha(0.55f));
+    graphics.drawRect(toolbar, 1.0f);
+    graphics.setColour(bluePanel);
+    graphics.fillRect(juce::Rectangle<float>(20.0f, 14.0f, 26.0f, 17.0f));
+    graphics.setColour(blueLed.withAlpha(0.85f));
+    graphics.drawRect(juce::Rectangle<float>(20.0f, 14.0f, 26.0f, 17.0f), 1.0f);
+    graphics.setColour(silverLight);
+    graphics.setFont(juce::Font(juce::FontOptions(10.0f, juce::Font::bold)));
+    graphics.drawText("RB", 20, 15, 26, 15, juce::Justification::centred);
+    graphics.setColour(labelColour);
+    graphics.setFont(juce::Font(juce::FontOptions(9.0f)));
+    graphics.drawText("REAPERIANI BASS   /   HARMONIC PROCESSOR", 55, 14, 340, 17,
+                      juce::Justification::centredLeft);
+    graphics.setColour(silver.withAlpha(0.72f));
+    graphics.drawText("MONO / STEREO     V1.0.0", 428, 14, 264, 17,
                       juce::Justification::centredRight);
 
-    graphics.setColour(brass.withAlpha(0.22f));
-    graphics.drawLine(50.0f, 314.0f, 870.0f, 314.0f, 1.0f);
+    auto presetBand = juce::Rectangle<float>(13.0f, 35.0f, 694.0f, 23.0f);
+    graphics.setColour(nearBlack);
+    graphics.fillRect(presetBand);
+    graphics.setColour(silverDark);
+    graphics.drawLine(presetBand.getX(), presetBand.getY(), presetBand.getRight(), presetBand.getY(), 1.0f);
+    graphics.setColour(blueLed.withAlpha(0.25f));
+    graphics.drawLine(presetBand.getX(), presetBand.getBottom(), presetBand.getRight(), presetBand.getBottom(), 1.0f);
 
-    graphics.setColour(brass.withAlpha(0.55f));
+    auto panel = juce::Rectangle<float>(17.0f, 62.0f, 686.0f, 384.0f);
+    graphics.setColour(nearBlack);
+    graphics.fillRect(panel.expanded(2.0f));
+    graphics.setColour(silver.withAlpha(0.9f));
+    graphics.drawRect(panel.expanded(1.0f), 1.0f);
+    juce::ColourGradient blue(juce::Colour{0xff001426}, panel.getX(), panel.getY(),
+                              juce::Colour{0xff00243a}, panel.getRight(), panel.getBottom(), false);
+    blue.addColour(0.45, juce::Colour{0xff001c30});
+    graphics.setGradientFill(blue);
+    graphics.fillRect(panel);
+    graphics.setColour(blueLed.withAlpha(0.18f));
+    graphics.drawLine(panel.getX() + 2.0f, panel.getY() + 2.0f,
+                      panel.getRight() - 2.0f, panel.getY() + 2.0f, 1.0f);
+
+    const auto meters = processor.getMeterReadings();
+    const auto led = meters.clipping ? peakRed : (meters.outputLeftDb > -58.0f ? blueLed : silverDark);
+    graphics.setColour(nearBlack);
+    graphics.fillEllipse(31.0f, 82.0f, 19.0f, 19.0f);
+    graphics.setColour(silver);
+    graphics.drawEllipse(32.0f, 83.0f, 17.0f, 17.0f, 1.0f);
+    graphics.setColour(led);
+    graphics.fillEllipse(35.0f, 86.0f, 11.0f, 11.0f);
+    graphics.setColour(led.withAlpha(0.35f));
+    graphics.fillEllipse(32.0f, 83.0f, 17.0f, 17.0f);
+    graphics.setColour(labelColour);
+    graphics.setFont(juce::Font(juce::FontOptions(9.0f, juce::Font::bold)));
+    graphics.drawText(meters.clipping ? "CLIP" : "OUT", 52, 83, 42, 17,
+                      juce::Justification::centredLeft);
+
+    graphics.setColour(labelColour);
+    graphics.setFont(juce::Font(juce::FontOptions(9.0f, juce::Font::bold)));
+    graphics.drawText("FREQ. (Hz)", 316, 74, 110, 15, juce::Justification::centred);
+    graphics.setColour(blueLed.withAlpha(0.28f));
+    graphics.drawLine(276.0f, 92.0f, 468.0f, 92.0f, 1.0f);
+    auto frequencyReadout = juce::Rectangle<int>(506, 96, 72, 23);
+    graphics.setColour(nearBlack);
+    graphics.fillRect(frequencyReadout);
+    graphics.setColour(silverLight);
+    graphics.drawLine(static_cast<float>(frequencyReadout.getX()), static_cast<float>(frequencyReadout.getY()),
+                      static_cast<float>(frequencyReadout.getRight()), static_cast<float>(frequencyReadout.getY()), 1.0f);
+    graphics.setColour(silverDark);
+    graphics.drawRect(frequencyReadout, 1);
+    graphics.setColour(labelColour);
     graphics.setFont(juce::Font(juce::FontOptions(10.0f, juce::Font::bold)));
-    graphics.drawText("LOW-END SELECT", 40, 296, 170, 15, juce::Justification::centredLeft);
-    graphics.drawText("HARMONIC SHAPING", 39, 510, 260, 15, juce::Justification::centredLeft);
+    graphics.drawText(juce::String(static_cast<int>(std::round(sliders[0].getValue()))) + " Hz",
+                      frequencyReadout, juce::Justification::centred);
 
-    for (std::size_t index = 0; index < knobs.size(); ++index)
+    constexpr std::array<int, 5> columnCentres{102, 207, 339, 465, 593};
+    constexpr std::array<const char*, 5> columnLabels{
+        "ORIGINAL BASS", "INTENSITY", "HARMONICS", "GAIN", "OUTPUT"};
+    for (std::size_t index = 0; index < columnCentres.size(); ++index)
     {
-        const auto topRow = index < 4;
-        const auto centreX = topRow ? 132 + static_cast<int>(index) * 219
-                                    : 242 + static_cast<int>(index - 4) * 219;
-        const auto labelY = topRow ? 120 : 339;
-        const auto valueY = topRow ? 268 : 460;
-        graphics.setColour(ink);
-        graphics.setFont(juce::Font(juce::FontOptions(topRow ? 12.0f : 11.0f, juce::Font::bold)));
-        graphics.drawText(parameterNames[index], centreX - 85, labelY, 170, 17,
+        graphics.setColour(labelColour);
+        graphics.setFont(juce::Font(juce::FontOptions(9.0f, juce::Font::bold)));
+        graphics.drawText(columnLabels[index], columnCentres[index] - 48, 145, 96, 14,
                           juce::Justification::centred);
-
-        auto value = knobs[index].getTextFromValue(knobs[index].getValue());
-        if (index == 2)
-            value = juce::String(static_cast<int>(std::round(knobs[index].getValue()))) + "% EVEN";
-        graphics.setColour(brassLight);
-        graphics.setFont(juce::Font(juce::FontOptions(11.0f)));
-        graphics.drawText(value, centreX - 75, valueY, 150, 17, juce::Justification::centred);
+        graphics.setColour(silver.withAlpha(0.28f));
+        graphics.drawLine(static_cast<float>(columnCentres[index] - 38), 160.0f,
+                          static_cast<float>(columnCentres[index] + 38), 160.0f, 0.7f);
     }
 
-    graphics.setColour(brass.withAlpha(0.45f));
-    graphics.setFont(juce::Font(juce::FontOptions(9.0f)));
-    graphics.drawText("ODD", 520, 289, 42, 13, juce::Justification::centredLeft);
-    graphics.drawText("EVEN", 578, 289, 42, 13, juce::Justification::centredRight);
+    drawMeter(graphics, {66, 168, 72, 165}, meters.originalBassDb, MeterKind::originalBass, true);
+    drawMeter(graphics, {303, 168, 72, 165}, meters.harmonicsDb, MeterKind::harmonics, true);
+    drawMeter(graphics, {574, 168, 16, 165}, meters.outputLeftDb, MeterKind::output, false);
+    drawMeter(graphics, {596, 168, 16, 165}, meters.outputRightDb, MeterKind::output, false);
 
-    graphics.setColour(brass.withAlpha(0.22f));
-    graphics.drawLine(38.0f, 535.0f, 882.0f, 535.0f, 1.0f);
-    graphics.setColour(brass.withAlpha(0.72f));
-    graphics.setFont(juce::Font(juce::FontOptions(9.0f)));
-    graphics.drawText("MISSING FUNDAMENTAL  /  TONE  •  DYNAMICS  •  CLEAN", 40, 538, 690, 13,
+    graphics.setColour(silver.withAlpha(0.38f));
+    graphics.drawLine(251.0f, 143.0f, 251.0f, 353.0f, 1.0f);
+    graphics.drawLine(391.0f, 143.0f, 391.0f, 353.0f, 1.0f);
+    graphics.drawLine(523.0f, 143.0f, 523.0f, 353.0f, 1.0f);
+
+    const auto drawReadout = [&graphics](juce::Rectangle<int> area, const juce::String& text)
+    {
+        graphics.setColour(nearBlack);
+        graphics.fillRect(area);
+        graphics.setColour(silver.withAlpha(0.75f));
+        graphics.drawLine(static_cast<float>(area.getX()), static_cast<float>(area.getY()),
+                          static_cast<float>(area.getRight()), static_cast<float>(area.getY()), 1.0f);
+        graphics.setColour(labelColour);
+        graphics.setFont(juce::Font(juce::FontOptions(10.0f, juce::Font::bold)));
+        graphics.drawText(text, area, juce::Justification::centred);
+    };
+    drawReadout({73, 337, 58, 18}, oneDecimal(meters.originalBassDb));
+    drawReadout({310, 337, 58, 18}, oneDecimal(meters.harmonicsDb));
+    drawReadout({557, 337, 31, 18}, oneDecimal(meters.outputLeftDb));
+    drawReadout({593, 337, 31, 18}, oneDecimal(meters.outputRightDb));
+
+    graphics.setColour(silver.withAlpha(0.24f));
+    graphics.drawLine(28.0f, 366.0f, 692.0f, 366.0f, 1.0f);
+    constexpr std::array<const char*, 4> miniLabels{"ODD / EVEN", "HARMONIC DECAY", "DYNAMICS", "CLEAN"};
+    constexpr std::array<int, 4> miniCentres{139, 300, 461, 620};
+    for (std::size_t index = 0; index < miniLabels.size(); ++index)
+    {
+        graphics.setColour(labelColour.withAlpha(0.9f));
+        graphics.setFont(juce::Font(juce::FontOptions(8.5f, juce::Font::bold)));
+        graphics.drawText(miniLabels[index], miniCentres[index] - 66, 373, 132, 13,
+                          juce::Justification::centred);
+        const auto sliderIndex = index + 2;
+        auto value = sliders[sliderIndex].getTextFromValue(sliders[sliderIndex].getValue());
+        graphics.setColour(silverLight);
+        graphics.setFont(juce::Font(juce::FontOptions(8.5f)));
+        graphics.drawText(value, miniCentres[index] - 55, 419, 110, 12,
+                          juce::Justification::centred);
+    }
+
+    auto footer = juce::Rectangle<float>(13.0f, 451.0f, 694.0f, 56.0f);
+    juce::ColourGradient footerMetal(juce::Colour{0xff717678}, footer.getX(), footer.getY(),
+                                     juce::Colour{0xff363b3e}, footer.getX(), footer.getBottom(), false);
+    footerMetal.addColour(0.18, juce::Colour{0xff9da0a1});
+    graphics.setGradientFill(footerMetal);
+    graphics.fillRect(footer);
+    graphics.setColour(nearBlack);
+    graphics.drawLine(footer.getX(), footer.getY(), footer.getRight(), footer.getY(), 2.0f);
+    graphics.setColour(silverLight.withAlpha(0.65f));
+    graphics.drawLine(footer.getX() + 2.0f, footer.getY() + 3.0f,
+                      footer.getRight() - 2.0f, footer.getY() + 3.0f, 1.0f);
+    graphics.setColour(nearBlack.withAlpha(0.55f));
+    graphics.setFont(juce::Font(juce::FontOptions(8.5f)));
+    graphics.drawText("ORIGINAL BASS     •     HARMONIC SPECTRUM     •     STEREO OUTPUT", 27, 464, 430, 18,
                       juce::Justification::centredLeft);
+    graphics.setColour(juce::Colour{0xfff0f0e9});
+    graphics.setFont(juce::Font(juce::FontOptions(18.0f, juce::Font::italic)));
+    graphics.drawText("Reaperiani Bass", 470, 462, 210, 25, juce::Justification::centredRight);
+    graphics.setColour(nearBlack.withAlpha(0.6f));
+    graphics.setFont(juce::Font(juce::FontOptions(8.0f)));
+    graphics.drawText("BY REAPERIANI   /   V1.0.0", 480, 484, 200, 12, juce::Justification::centredRight);
+
+    for (const auto point : {juce::Point<float>{23.0f, 478.0f}, juce::Point<float>{697.0f, 478.0f}})
+    {
+        graphics.setColour(nearBlack);
+        graphics.fillEllipse(point.x - 4.0f, point.y - 4.0f, 8.0f, 8.0f);
+        graphics.setColour(silverLight.withAlpha(0.65f));
+        graphics.drawEllipse(point.x - 3.0f, point.y - 3.0f, 6.0f, 6.0f, 1.0f);
+        graphics.drawLine(point.x - 2.0f, point.y, point.x + 2.0f, point.y, 0.7f);
+    }
 }
 
 void ReaperianiBassAudioProcessorEditor::resized()
 {
-    for (std::size_t index = 0; index < knobs.size(); ++index)
-    {
-        const auto topRow = index < 4;
-        const auto centreX = topRow ? 132 + static_cast<int>(index) * 219
-                                    : 242 + static_cast<int>(index - 4) * 219;
-        const auto size = topRow ? 128 : 108;
-        const auto top = topRow ? 137 : 350;
-        knobs[index].setBounds(centreX - size / 2, top, size, size);
-    }
+    presetSelector.setBounds(184, 35, 352, 21);
+    aboutButton.setBounds(678, 12, 25, 21);
+    originalBassButton.setBounds(34, 113, 138, 25);
 
-    originalBassButton.setBounds(754, 430, 128, 30);
-    licenseButton.setBounds(773, 536, 102, 18);
+    sliders[0].setBounds(265, 96, 232, 23);
+    sliders[1].setBounds(181, 167, 53, 165);
+    sliders[2].setBounds(85, 391, 108, 22);
+    sliders[3].setBounds(246, 391, 108, 22);
+    sliders[4].setBounds(408, 391, 106, 22);
+    sliders[5].setBounds(571, 391, 98, 22);
+    sliders[6].setBounds(439, 167, 53, 165);
 }
